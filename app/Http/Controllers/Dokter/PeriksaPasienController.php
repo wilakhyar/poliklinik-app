@@ -9,6 +9,8 @@ use App\Models\Obat;
 use App\Models\Periksa;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class PeriksaPasienController extends Controller
 {
@@ -28,35 +30,104 @@ class PeriksaPasienController extends Controller
 
     public function create($id)
     {
-        $obats = Obat::all();
-        return view('dokter.periksa-pasien.create', compact('obats', 'id'));
+        $daftar = DaftarPoli::with('pasien')
+            ->whereHas('jadwalPeriksa', function ($query) {
+                $query->where('id_dokter', Auth::id());
+            })
+            ->findOrFail($id);
+
+        if ($daftar->periksas()->exists()) {
+            return redirect()
+                ->route('periksa-pasien.index')
+                ->with('error', 'Pasien ini sudah diperiksa.');
+        }
+
+        $obats = Obat::orderBy('nama_obat')->get();
+
+        return view('dokter.periksa-pasien.create', compact('daftar', 'obats'));
     }
 
     public function store(Request $request)
     {
         $request->validate([
-            'obat_json' => 'required',
-            'catatan' => 'nullable|string',
-            'biaya_periksa' => 'required|integer',
+            'id_daftar_poli' => 'required|exists:daftar_poli,id',
+            'obat_json'      => 'required|json',
+            'catatan'        => 'nullable|string',
         ]);
 
-        $obatIds = json_decode($request->obat_json, true);
+        // Rapikan data obat: gabungkan id yang sama, buang jumlah <= 0
+        $items = [];
+        foreach (json_decode($request->obat_json, true) ?? [] as $row) {
+            $idObat = (int) ($row['id'] ?? 0);
+            $jumlah = (int) ($row['jumlah'] ?? 0);
 
-        $periksa = Periksa::create([
-            'id_daftar_poli' => $request->id_daftar_poli,
-            'tgl_periksa' => now(),
-            'catatan' => $request->catatan,
-            'biaya_periksa' => $request->biaya_periksa + 150000,
-        ]);
-
-        if (is_array($obatIds)) {
-            foreach ($obatIds as $idObat) {
-                DetailPeriksa::create([
-                    'id_periksa' => $periksa->id,
-                    'id_obat' => $idObat,
-                ]);
+            if ($idObat > 0 && $jumlah > 0) {
+                $items[$idObat] = ($items[$idObat] ?? 0) + $jumlah;
             }
         }
+
+        // Pastikan pasien ini memang terdaftar di jadwal dokter yang sedang login
+        $daftarPoli = DaftarPoli::whereHas('jadwalPeriksa', function ($query) {
+                $query->where('id_dokter', Auth::id());
+            })
+            ->findOrFail($request->id_daftar_poli);
+
+        DB::transaction(function () use ($daftarPoli, $items, $request) {
+            // Kunci baris pendaftaran supaya tidak diproses dua kali
+            $daftar = DaftarPoli::lockForUpdate()->find($daftarPoli->id);
+
+            if ($daftar->periksas()->exists()) {
+                throw ValidationException::withMessages([
+                    'obat_json' => 'Pasien ini sudah diperiksa.',
+                ]);
+            }
+
+            // Kunci baris obat yang dipakai, lalu cek stok
+            $obats = Obat::whereIn('id', array_keys($items))
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            $totalObat = 0;
+            foreach ($items as $idObat => $jumlah) {
+                $obat = $obats->get($idObat);
+
+                if (! $obat) {
+                    throw ValidationException::withMessages([
+                        'obat_json' => 'Ada obat yang tidak ditemukan.',
+                    ]);
+                }
+
+                if ($obat->stok < $jumlah) {
+                    throw ValidationException::withMessages([
+                        'obat_json' => "Stok {$obat->nama_obat} tidak cukup (sisa {$obat->stok}).",
+                    ]);
+                }
+
+                $totalObat += $obat->harga * $jumlah;
+            }
+
+            // Simpan hasil periksa. Biaya dihitung di server: jasa dokter + total obat
+            $periksa = Periksa::create([
+                'id_daftar_poli' => $daftar->id,
+                'tgl_periksa'    => now(),
+                'catatan'        => $request->catatan,
+                'biaya_periksa'  => 150000 + $totalObat,
+            ]);
+
+            // Simpan detail obat dan kurangi stok
+            foreach ($items as $idObat => $jumlah) {
+                DetailPeriksa::create([
+                    'id_periksa' => $periksa->id,
+                    'id_obat'    => $idObat,
+                    'jumlah'     => $jumlah,
+                ]);
+
+                $obats->get($idObat)->decrement('stok', $jumlah);
+            }
+
+            $daftar->update(['status' => 'selesai']);
+        });
 
         return redirect()
             ->route('periksa-pasien.index')
