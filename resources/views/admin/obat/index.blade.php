@@ -16,7 +16,7 @@
     </div>
 
     {{-- Card --}}
-    <div class="card bg-base-100 shadow-md rounded-2 border">
+    <div class="card bg-base-100 shadow-md rounded-2xl border">
         <div class="card-body p-0">
 
             <div class="overflow-x-auto">
@@ -28,6 +28,7 @@
                             <th class="px-6 py-4">Nama Obat</th>
                             <th class="px-6 py-4">Kemasan</th>
                             <th class="px-6 py-4">Harga</th>
+                            <th class="px-6 py-4">Stok</th>
                             <th class="px-6 py-4 text-right">Aksi</th>
                         </tr>
                     </thead>
@@ -50,6 +51,10 @@
 
                             <td class="px-6 py-4 font-semibold text-slate-800">
                                 Rp {{ number_format($obat->harga, 0, ',', '.') }}
+                            </td>
+
+                            <td class="px-6 py-4">
+                                {{ $obat->stok }}
                             </td>
 
                             <td class="px-6 py-4 text-right">
@@ -85,7 +90,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="4" class="text-center py-12 text-slate-400">
+                            <td colspan="5" class="text-center py-12 text-slate-400">
                                 <i class="fas fa-inbox text-3xl mb-3 block"></i>
                                 Belum ada data obat
                             </td>
