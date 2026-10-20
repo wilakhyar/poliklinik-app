@@ -17,6 +17,10 @@ class DaftarPoli extends Model
         'status',
     ];
 
+    protected $casts = [
+        'tanggal' => 'date',
+    ];
+
     public function pasien()
     {
         return $this->belongsTo(User::class, 'id_pasien');

@@ -16,6 +16,11 @@ class Pembayaran extends Model
         'tgl_verifikasi',
     ];
 
+    protected $casts = [
+        'tgl_upload'     => 'datetime',
+        'tgl_verifikasi' => 'datetime',
+    ];
+
     public function periksa()
     {
         return $this->belongsTo(Periksa::class, 'id_periksa');

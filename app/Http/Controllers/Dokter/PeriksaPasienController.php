@@ -7,6 +7,7 @@ use App\Models\DaftarPoli;
 use App\Models\DetailPeriksa;
 use App\Models\Obat;
 use App\Models\Periksa;
+use App\Models\Pembayaran;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -40,6 +41,19 @@ class PeriksaPasienController extends Controller
             return redirect()
                 ->route('periksa-pasien.index')
                 ->with('error', 'Pasien ini sudah diperiksa.');
+        }
+
+        // Tandai pasien ini sebagai sedang dilayani (hanya untuk antrian hari ini)
+        if ($daftar->tanggal?->isToday() && $daftar->status !== 'dilayani') {
+            DB::transaction(function () use ($daftar) {
+                // Pada satu jadwal dan tanggal hanya boleh satu pasien yang sedang dilayani
+                DaftarPoli::where('id_jadwal', $daftar->id_jadwal)
+                    ->whereDate('tanggal', $daftar->tanggal)
+                    ->where('status', 'dilayani')
+                    ->update(['status' => 'menunggu']);
+
+                $daftar->update(['status' => 'dilayani']);
+            });
         }
 
         $obats = Obat::orderBy('nama_obat')->get();
@@ -125,6 +139,12 @@ class PeriksaPasienController extends Controller
 
                 $obats->get($idObat)->decrement('stok', $jumlah);
             }
+
+            // Buat tagihan untuk pasien
+            Pembayaran::create([
+                'id_periksa' => $periksa->id,
+                'status'     => 'belum_bayar',
+            ]);
 
             $daftar->update(['status' => 'selesai']);
         });
