@@ -14,6 +14,7 @@ use App\Http\Controllers\Pasien\DashboardController as PasienDashboardController
 use App\Http\Controllers\Pasien\PembayaranController as PasienPembayaranController;
 use App\Http\Controllers\Pasien\PoliController;
 use App\Http\Controllers\Pasien\RiwayatPendaftaranController;
+use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -98,3 +99,10 @@ Route::middleware('auth')->group(function () {
     Route::patch('/notifikasi/baca-semua', [NotifikasiController::class, 'bacaSemua'])->name('notifikasi.baca-semua');
     Route::patch('/notifikasi/{id}/baca', [NotifikasiController::class, 'baca'])->name('notifikasi.baca');
 });
+
+foreach (['admin', 'dokter', 'pasien'] as $role) {
+    Route::middleware(['auth', "role:$role"])->prefix($role)->group(function () use ($role) {
+        Route::get('/profile', [ProfileController::class, 'edit'])->name("$role.profile");
+        Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name("$role.profile.password");
+    });
+}

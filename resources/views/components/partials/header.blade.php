@@ -76,24 +76,41 @@
     </button>
 
     {{-- User Info --}}
-    <div class="flex items-center gap-3">
+    <div class="dropdown dropdown-end">
+        <div tabindex="0" role="button" class="flex items-center gap-3 cursor-pointer">
 
-        <div class="text-right hidden sm:block">
-            <div class="text-sm font-semibold leading-tight">
-                {{ auth()->user()->nama ?? 'Pengguna' }}
+            <div class="text-right hidden sm:block">
+                <div class="text-sm font-semibold leading-tight">
+                    {{ auth()->user()->nama ?? 'Pengguna' }}
+                </div>
+                <div class="text-xs text-base-content/50 leading-tight">
+                    {{ auth()->user()->role ?? 'Admin Sistem' }}
+                </div>
             </div>
-            <div class="text-xs text-base-content/50 leading-tight">
-                {{ auth()->user()->role ?? 'Admin Sistem' }}
+
+            <div class="avatar">
+                <div class="w-10 h-10 rounded-full bg-primary text-primary-content flex items-center justify-center">
+                    <span class="text-sm font-semibold leading-none">
+                        {{ strtoupper(substr(auth()->user()->nama ?? 'U', 0, 1)) }}
+                    </span>
+                </div>
             </div>
         </div>
 
-        <div class="avatar">
-            <div class="w-10 h-10 rounded-full bg-primary text-primary-content flex items-center justify-center">
-                <span class="text-sm font-semibold leading-none">
-                    {{ strtoupper(substr(auth()->user()->nama ?? 'U', 0, 1)) }}
-                </span>
-            </div>
-        </div>
+        <ul tabindex="0"
+            class="dropdown-content menu z-50 mt-3 w-52 rounded-xl bg-base-100 shadow-lg border border-base-300 p-2">
+            <li>
+                <a href="{{ route(auth()->user()->role . '.profile') }}">
+                    <i class="fas fa-user-gear w-4"></i> Profile
+                </a>
+            </li>
+            <li>
+                <a href="{{ route(auth()->user()->role . '.profile') }}">
+                    <i class="fas fa-key w-4"></i> Ganti Password
+
+                </a>
+            </li>
+        </ul>
     </div>
 
 </header>
