@@ -48,7 +48,11 @@
             <div class="w-36 rounded-xl bg-white text-slate-800 p-4 text-center">
                 <p class="text-[11px] uppercase text-slate-500">Sedang Dilayani</p>
                 <p id="bannerDilayani" data-jadwal="{{ $jadwalAktif->id }}"
+                    data-live="{{ $antrianAktif->tanggal->isToday() ? '1' : '0' }}"
                     class="text-4xl font-extrabold mt-1 text-indigo-700">{{ $nomorDilayani }}</p>
+                <p id="liveIndikator" class="text-[10px] font-semibold mt-1 text-slate-400">
+                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-slate-400 mr-1"></span>Menghubungkan...
+                </p>
             </div>
         </div>
     </div>
@@ -117,5 +121,39 @@
             </div>
         </div>
     </div>
+    
+    @push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            if (!window.Echo) return;
 
+            // Indikator status koneksi (hanya ada kalau banner tampil)
+            const indikator = document.getElementById('liveIndikator');
+            function setIndikator(aktif) {
+                if (!indikator) return;
+                indikator.className = 'text-[10px] font-semibold mt-1 ' + (aktif ? 'text-green-600' : 'text-slate-400');
+                indikator.innerHTML = '<span class="inline-block w-1.5 h-1.5 rounded-full mr-1 '
+                    + (aktif ? 'bg-green-500' : 'bg-slate-400') + '"></span>'
+                    + (aktif ? 'Live update' : 'Menghubungkan...');
+            }
+            const koneksi = window.Echo.connector.pusher.connection;
+            koneksi.bind('state_change', function (s) { setIndikator(s.current === 'connected'); });
+            setIndikator(koneksi.state === 'connected');
+
+            // Terima nomor terbaru dan ubah angka tanpa reload
+            window.Echo.channel('antrian').listen('.AntrianDiperbarui', function (e) {
+                const nomor = e.nomor ?? '-';
+
+                document.querySelectorAll('.nomor-dilayani[data-jadwal="' + e.id_jadwal + '"]').forEach(function (el) {
+                    el.textContent = nomor;
+                });
+
+                const banner = document.getElementById('bannerDilayani');
+                if (banner && banner.dataset.jadwal == e.id_jadwal && banner.dataset.live === '1') {
+                    banner.textContent = nomor;
+                }
+            });
+        });
+    </script>
+    @endpush
 </x-layouts.app>

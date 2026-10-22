@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Dokter;
 
+use App\Events\AntrianDiperbarui;
 use App\Http\Controllers\Controller;
 use App\Models\DaftarPoli;
 use App\Models\DetailPeriksa;
 use App\Models\Obat;
-use App\Models\Periksa;
 use App\Models\Pembayaran;
+use App\Models\Periksa;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +30,7 @@ class PeriksaPasienController extends Controller
 
         return view('dokter.periksa-pasien.index', compact('daftarPasien'));
     }
+
 
     public function create($id)
     {
@@ -54,9 +57,13 @@ class PeriksaPasienController extends Controller
 
                 $daftar->update(['status' => 'dilayani']);
             });
+
+            // Siarkan nomor terbaru ke semua dashboard pasien (setelah data tersimpan)
+            $this->siarkanAntrian($daftar);
         }
 
         $obats = Obat::orderBy('nama_obat')->get();
+
 
         return view('dokter.periksa-pasien.create', compact('daftar', 'obats'));
     }
@@ -90,6 +97,7 @@ class PeriksaPasienController extends Controller
             // Kunci baris pendaftaran supaya tidak diproses dua kali
             $daftar = DaftarPoli::lockForUpdate()->find($daftarPoli->id);
 
+
             if ($daftar->periksas()->exists()) {
                 throw ValidationException::withMessages([
                     'obat_json' => 'Pasien ini sudah diperiksa.',
@@ -121,6 +129,7 @@ class PeriksaPasienController extends Controller
                 $totalObat += $obat->harga * $jumlah;
             }
 
+
             // Simpan hasil periksa. Biaya dihitung di server: jasa dokter + total obat
             $periksa = Periksa::create([
                 'id_daftar_poli' => $daftar->id,
@@ -149,8 +158,30 @@ class PeriksaPasienController extends Controller
             $daftar->update(['status' => 'selesai']);
         });
 
+        // Transaksi sudah selesai: siarkan bahwa pasien ini tidak lagi dilayani
+        $this->siarkanAntrian($daftarPoli);
+
         return redirect()
+
             ->route('periksa-pasien.index')
             ->with('success', 'Data periksa berhasil disimpan.');
+    }
+
+    /**
+     * Kirim nomor yang sedang dilayani pada jadwal ini ke semua dashboard pasien.
+     */
+    private function siarkanAntrian(DaftarPoli $daftar): void
+    {
+        // Dashboard hanya menampilkan antrian hari ini
+        if (! Carbon::parse($daftar->tanggal)->isToday()) {
+            return;
+        }
+
+        $nomor = DaftarPoli::where('id_jadwal', $daftar->id_jadwal)
+            ->whereDate('tanggal', today())
+            ->where('status', 'dilayani')
+            ->value('no_antrian');
+
+        AntrianDiperbarui::dispatch($daftar->id_jadwal, $nomor ?? '-');
     }
 }
