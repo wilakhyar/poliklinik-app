@@ -16,6 +16,7 @@ use App\Http\Controllers\Pasien\PoliController;
 use App\Http\Controllers\Pasien\RiwayatPendaftaranController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ExportController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -46,6 +47,9 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->group(function () {
     Route::resource('dokter', DokterController::class);
     Route::resource('pasien', PasienController::class);
     Route::resource('obat', ObatController::class);
+    Route::get('/export/obat', [ObatController::class, 'export'])->name('obat.export');
+    Route::get('/export/dokter', [ExportController::class, 'dokter'])->name('export.dokter');
+    Route::get('/export/pasien', [ExportController::class, 'pasien'])->name('export.pasien');
 
     Route::get('/pembayaran', [AdminPembayaranController::class, 'index'])->name('admin.pembayaran.index');
     Route::patch('/pembayaran/{id}/verifikasi', [AdminPembayaranController::class, 'verifikasi'])->name('admin.pembayaran.verifikasi');
@@ -69,6 +73,8 @@ Route::middleware(['auth', 'role:dokter'])->prefix('dokter')->group(function () 
 
     Route::get('/riwayat-pasien', [RiwayatPasienController::class, 'index'])->name('riwayat-pasien.index');
     Route::get('/riwayat-pasien/{id}', [RiwayatPasienController::class, 'show'])->name('riwayat-pasien.show');
+    Route::get('/export/jadwal-periksa', [ExportController::class, 'jadwalPeriksa'])->name('export.jadwal-periksa');
+    Route::get('/export/riwayat-pasien', [ExportController::class, 'riwayatPasien'])->name('export.riwayat-pasien');
 });
 
 /*
